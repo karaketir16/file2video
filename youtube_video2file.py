@@ -11,7 +11,7 @@ import json
 from pyzbar import pyzbar
 import os
 from tqdm import tqdm
-
+import pafy
 
 def checksum(large_file):
     md5_object = hashlib.md5()
@@ -34,7 +34,13 @@ def read_the_barc(frame):
     return False, 0
 
 def read_vid():
-    cap = cv2.VideoCapture(src)
+    url = src
+    video = pafy.new(url)
+    best = video.getbest(preftype="mp4")
+
+    cap = cv2.VideoCapture(best.url)
+
+    # cap = cv2.VideoCapture(src)
     ret, first_frame = cap.read()
     res, retval = read_the_barc(first_frame)
     if not res:
@@ -80,7 +86,7 @@ if __name__ == '__main__':
     global src
     global dest_folder
     if len(sys.argv) < 3:
-        print("usage: python video2file.py source_file.mp4 destination_folder")
+        print("usage: python video2file.py \"https://video_url\" destination_folder")
         assert False
     src = sys.argv[1]
     dest_folder = sys.argv[2]
