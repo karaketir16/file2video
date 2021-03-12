@@ -7,9 +7,12 @@ First install requirements
 ```
 pip install -r requirements.txt
 ```
-Then you can run
+Then you can run to convert file to video
 ```
 python file2video.py test/test100k.txt out.mp4
+```
+And you can run to convert back to file
+```
 python video2file.py out.mp4 .
 ```
 
