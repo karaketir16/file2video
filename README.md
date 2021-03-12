@@ -15,6 +15,10 @@ And you can run to convert back to file
 ```
 python video2file.py out.mp4 .
 ```
+Or give it a youtube url
+```
+python youtube_video2file.py "https://youtu.be/z7Op3XNvWxw" .
+```
 
 ### Example output
 https://youtu.be/z7Op3XNvWxw
