@@ -8,7 +8,24 @@ import numpy as np
 import cv2
 import base64
 import sys
+import os
+import math
+from tqdm import tqdm
+import hashlib
+import json
 
+
+meta_data = {}
+
+width = 1080
+height = 1080
+dim = (width, height)
+chunk_size = 500
+frame_rate = 20.0
+
+
+file_size = 0
+chunk_count = 0
 
 #https://stackoverflow.com/a/519653/8328237
 def read_in_chunks(file_object, chunk_size=1024):
@@ -20,13 +37,17 @@ def read_in_chunks(file_object, chunk_size=1024):
             break
         yield data
 
+def checksum(large_file):
+    md5_object = hashlib.md5()
+    block_size = 128 * md5_object.block_size
+    a_file = open(large_file, 'rb')
+    chunk = a_file.read(block_size)
+    while chunk:
+        md5_object.update(chunk)
+        chunk = a_file.read(block_size)
+    md5_hash = md5_object.hexdigest()
 
-width = 1080
-height = 1080
-dim = (width, height)
-chunk_size = 500
-frame_rate = 20.0
-
+    return md5_hash
 
 def create_qr(data_str):
     qr = qrcode.QRCode(
@@ -44,36 +65,60 @@ def create_qr(data_str):
     # Convert RGB to BGR
 
 def create_video():
+    global meta_data
+    global file_size
+    global chunk_count
     counter = 0
 
     # Define the codec and create VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*'X264')
-    out = cv2.VideoWriter(sys.argv[2], fourcc, frame_rate, dim)
+    out = cv2.VideoWriter(dest, fourcc, frame_rate, dim)
 
+    md5_checksum = checksum(src)
+    file_stats = os.stat(src)
+    file_size = file_stats.st_size
+    chunk_count = math.ceil(file_size / chunk_size)
+
+
+    # type MetaData struct {
+    # 	Filename         string
+    # 	ChunkCount       int
+    # 	Filehash         string
+    # 	ConverterUrl     string
+    # 	ConverterVersion string
+    # }
+    meta_data["Filename"] = os.path.basename(src)
+    meta_data["ChunkCount"] = chunk_count
+    meta_data["Filehash"] = md5_checksum
+    meta_data["ConverterUrl"] = "https://github.com/karaketir16/file2video"
+    meta_data["ConverterVersion"] = "python_v1"
+
+    first_frame = create_qr(json.dumps(meta_data, indent=4))
+    first_frame = cv2.resize(first_frame, dim, interpolation=cv2.INTER_AREA)
+    out.write(first_frame)
+
+    pbar = tqdm(total=chunk_count)
     with open(sys.argv[1], 'rb') as f:
         for piece in read_in_chunks(f, chunk_size):
             frame = create_qr(base64.b64encode(piece).decode('ascii'))
             frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
             out.write(frame)
-            print(counter)
-            counter += 1
+            pbar.update(1)
+    pbar.close()
 
 
     # Release everything if job is finished
     out.release()
 
-
-
-
-
-
-
-
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    global src
+    global dest
     if len(sys.argv) < 3:
         print("usage: python file2video.py source_file output_file.mp4")
         assert False
+    src = sys.argv[1]
+    dest = sys.argv[2]
     create_video()
 
 
