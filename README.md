@@ -1,6 +1,7 @@
 ## File2Video
 
 Convert any file to video that consist from QR codes. You can upload it to youtube, and use youtube as unlimited storage. Output video size likely 150 times larger than input file. (If you will upload the video to youtube and download back, file size reduced. Youtube can compress video better)
+So Youtube approximately compresses the file by 10 so at the start you create a file that is 150x the original file size but after downloading from youtube you dowload a filet that is 15x the size the original for the output barcode video, the converter for video 2 file converts succesfully the compressed youtube version. This has been tested. 01/09/2023
 
 ### Example Usage
 First install requirements
