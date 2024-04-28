@@ -83,7 +83,9 @@ def read_video(cap, dest_folder):
     logging.info("Verify file integrity")
     md5_sum = checksum(dest)
     assert md5_sum == meta_data["Filehash"], "Data corrupted"
-    logging.info("File integrity verified")
+    logging.info("File integrity verified: ")
+    logging.info(dest)
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

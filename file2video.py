@@ -3,13 +3,13 @@ import os
 import sys
 import base64
 import math
-import hashlib
 import json
 import qrcode
 import numpy as np
 from multiprocessing import Pool, cpu_count
 import av
 from PIL import Image
+from tqdm import tqdm
 
 from checksum import checksum
 
@@ -58,6 +58,8 @@ def create_video(src, dest):
     file_size = file_stats.st_size
     chunk_count = math.ceil(file_size / chunk_size)
 
+    pbar = tqdm(total=chunk_count, desc="Generating Frames")
+
     meta_data = {
         "Filename": os.path.basename(src),
         "ChunkCount": chunk_count,
@@ -90,6 +92,9 @@ def create_video(src, dest):
                 break
             frames = pool.map(process_chunk, chunks)
             encode_and_write_frames(frames, stream, container)
+            pbar.update(len(frames))
+
+
 
     # Finalize the video file
     for packet in stream.encode():
