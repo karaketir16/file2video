@@ -3,39 +3,15 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-import qrcode
-import numpy as np
 import cv2
 import base64
 import sys
-import os
-import math
-from tqdm import tqdm
 import hashlib
 import json
+from pyzbar import pyzbar
+import os
+from tqdm import tqdm
 
-
-meta_data = {}
-
-width = 1080
-height = 1080
-dim = (width, height)
-chunk_size = 500
-frame_rate = 20.0
-
-
-file_size = 0
-chunk_count = 0
-
-#https://stackoverflow.com/a/519653/8328237
-def read_in_chunks(file_object, chunk_size=1024):
-    """Lazy function (generator) to read a file piece by piece.
-    Default chunk size: 1k."""
-    while True:
-        data = file_object.read(chunk_size)
-        if not data:
-            break
-        yield data
 
 def checksum(large_file):
     md5_object = hashlib.md5()
@@ -49,79 +25,69 @@ def checksum(large_file):
 
     return md5_hash
 
-def create_qr(data_str):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=1,
-        border=4,
-    )
-    qr.add_data(data_str)
-    # qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
-    # print(type(img))
-    cv_img = np.array(img)
-    return cv_img[:, :, ::-1].copy()
-    # Convert RGB to BGR
-    
-    
-    
-def create_frame(chunk):
-    frame = create_qr(base64.b64encode(chunk).decode('ascii'))
-    frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
-    return frame
-from multiprocessing import Pool
 
-def create_video():
-    global meta_data
-    global file_size
-    global chunk_count
-    
-    md5_checksum = checksum(src)
-    file_stats = os.stat(src)
-    file_size = file_stats.st_size
-    chunk_count = math.ceil(file_size / chunk_size)
+def read_the_barc(frame):
+    barcodes = pyzbar.decode(frame)
+    for barcode in barcodes:
+        barcode_info = barcode.data.decode('utf-8')
+        return True, barcode_info
+    return False, 0
 
-    meta_data["Filename"] = os.path.basename(src)
-    meta_data["ChunkCount"] = chunk_count
-    meta_data["Filehash"] = md5_checksum
-    meta_data["ConverterUrl"] = "https://github.com/karaketir16/file2video"
-    meta_data["ConverterVersion"] = "python_v1"
+def read_vid():
+    cap = cv2.VideoCapture(src)
+    ret, first_frame = cap.read()
+    res, retval = read_the_barc(first_frame)
+    if not res:
+        print("Cannot read first frame QR")
+        return
+    meta_data = json.loads(retval)
 
-    first_frame = create_qr(json.dumps(meta_data, indent=4))
-    first_frame = cv2.resize(first_frame, dim, interpolation=cv2.INTER_AREA)
+    # type MetaData struct {
+    # 	Filename         string
+    # 	ChunkCount       int
+    # 	Filehash         string
+    # 	ConverterUrl     string
+    # 	ConverterVersion string
+    # }
 
-    chunks = []
-    with open(sys.argv[1], 'rb') as f:
-        for piece in read_in_chunks(f, chunk_size):
-            chunks.append(piece)
+    print(retval)
+    dest = os.path.join(dest_folder, meta_data["Filename"])
+    file = open(dest, "wb")
 
-    # Create a multiprocessing Pool
-    pool = Pool()  
-    frames = pool.map(create_frame, chunks)
+    pbar = tqdm(total=meta_data["ChunkCount"])
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        if ret:
+            res, retval = read_the_barc(frame)
+            assert res
+            file.write(base64.b64decode(retval))
+            pbar.update(1)
+        else:
+            break
 
-    # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'X264')
-    out = cv2.VideoWriter(dest, fourcc, frame_rate, dim)
-    out.write(first_frame)
-    for frame in frames:
-        out.write(frame)
+    pbar.close()
+    file.close()
 
-    # Release everything if job is finished
-    out.release()
+    md5_sum = checksum(dest)
+    if md5_sum != meta_data["Filehash"]:
+        print("Data corrupted")
+    else:
+        print("Done!")
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     global src
-    global dest
+    global dest_folder
     if len(sys.argv) < 3:
-        print("usage: python file2video.py source_file output_file.mp4")
+        print("usage: python video2file.py source_file.mp4 destination_folder")
         assert False
     src = sys.argv[1]
-    dest = sys.argv[2]
-    create_video()
+    dest_folder = sys.argv[2]
+    read_vid()
+
+# See PyCharm help at https://www.jetbrains.com/help/pycharm/
 
 
 #https://towardsdatascience.com/building-a-barcode-qr-code-reader-using-python-360e22dfb6e5
 
-#https://github.com/cisco/openh264/releases

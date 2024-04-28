@@ -63,30 +63,25 @@ def create_qr(data_str):
     cv_img = np.array(img)
     return cv_img[:, :, ::-1].copy()
     # Convert RGB to BGR
+    
+    
+    
+def create_frame(chunk):
+    frame = create_qr(base64.b64encode(chunk).decode('ascii'))
+    frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+    return frame
+from multiprocessing import Pool
 
 def create_video():
     global meta_data
     global file_size
     global chunk_count
-    counter = 0
-
-    # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'X264')
-    out = cv2.VideoWriter(dest, fourcc, frame_rate, dim)
-
+    
     md5_checksum = checksum(src)
     file_stats = os.stat(src)
     file_size = file_stats.st_size
     chunk_count = math.ceil(file_size / chunk_size)
 
-
-    # type MetaData struct {
-    # 	Filename         string
-    # 	ChunkCount       int
-    # 	Filehash         string
-    # 	ConverterUrl     string
-    # 	ConverterVersion string
-    # }
     meta_data["Filename"] = os.path.basename(src)
     meta_data["ChunkCount"] = chunk_count
     meta_data["Filehash"] = md5_checksum
@@ -95,17 +90,22 @@ def create_video():
 
     first_frame = create_qr(json.dumps(meta_data, indent=4))
     first_frame = cv2.resize(first_frame, dim, interpolation=cv2.INTER_AREA)
-    out.write(first_frame)
 
-    pbar = tqdm(total=chunk_count)
+    chunks = []
     with open(sys.argv[1], 'rb') as f:
         for piece in read_in_chunks(f, chunk_size):
-            frame = create_qr(base64.b64encode(piece).decode('ascii'))
-            frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
-            out.write(frame)
-            pbar.update(1)
-    pbar.close()
+            chunks.append(piece)
 
+    # Create a multiprocessing Pool
+    pool = Pool()  
+    frames = pool.map(create_frame, chunks)
+
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'X264')
+    out = cv2.VideoWriter(dest, fourcc, frame_rate, dim)
+    out.write(first_frame)
+    for frame in frames:
+        out.write(frame)
 
     # Release everything if job is finished
     out.release()
