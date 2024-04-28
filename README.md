@@ -7,11 +7,11 @@ First install requirements
 ```
 pip install -r requirements.txt
 ```
-We need opengl, glib, zbar
+We need opengl, glib, zbar, ffmpeg
 
 install it ubuntu/debian
 ```
-sudo apt-get install libgl1 libglib2.0-dev libzbar0
+sudo apt-get install libgl1 libglib2.0-dev libzbar0 ffmpeg
 ```
 
 Then you can run to convert file to video

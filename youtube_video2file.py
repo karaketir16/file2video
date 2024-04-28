@@ -2,6 +2,7 @@ import cv2
 import sys
 import yt_dlp
 import os
+from datetime import datetime
 
 from video2file import read_video
 
@@ -12,7 +13,9 @@ if __name__ == '__main__':
 
     src = sys.argv[1]
     dest_folder = sys.argv[2]
-    output_file = f"{dest_folder}/downloaded_video.mp4"
+    base_filename = "downloaded_video"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    output_file = f"{dest_folder}/{base_filename}_{timestamp}.mp4"
 
     # Create a yt-dlp configuration to download the video
     ydl_opts = {
