@@ -12,6 +12,33 @@ from pyzbar import pyzbar
 import os
 from tqdm import tqdm
 
+def apply_preprocessing(frame):
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Apply adaptive thresholding
+    #threshold = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    _, threshold = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+    return threshold
+
+def read_the_barc(frame):
+    preprocessed_frame = apply_preprocessing(frame)
+    barcodes = pyzbar.decode(preprocessed_frame)
+    for barcode in barcodes:
+        barcode_info = barcode.data.decode('utf-8')
+        return True, barcode_info
+
+    return False, 0
+
+
+def read_the_barc_wo_preprocess(frame):
+    barcodes = pyzbar.decode(frame)
+    for barcode in barcodes:
+        barcode_info = barcode.data.decode('utf-8')
+        return True, barcode_info
+
+    return False, 0
+
+# Existing functions remain unchanged...
 
 def checksum(large_file):
     md5_object = hashlib.md5()
@@ -26,12 +53,23 @@ def checksum(large_file):
     return md5_hash
 
 
-def read_the_barc(frame):
-    barcodes = pyzbar.decode(frame)
-    for barcode in barcodes:
-        barcode_info = barcode.data.decode('utf-8')
-        return True, barcode_info
-    return False, 0
+# def read_the_barc(frame):
+#     barcodes = pyzbar.decode(frame)
+#     for barcode in barcodes:
+#         barcode_info = barcode.data.decode('utf-8')
+#         return True, barcode_info
+#     return False, 0
+
+def checker(frame):
+    res_with, _ = read_the_barc(frame)
+    res_wo, _ = read_the_barc_wo_preprocess(frame)
+
+    if res_with == True and res_wo == True:
+        pass
+    elif res_with == True and res_wo == False:
+        print("Better with Preprocessing")
+    elif res_with == False and res_wo == True:
+        print("Worse with Preprocessing")
 
 def read_vid():
     cap = cv2.VideoCapture(src)
@@ -58,6 +96,9 @@ def read_vid():
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret:
+
+            checker(frame)
+
             res, retval = read_the_barc(frame)
             assert res
             file.write(base64.b64decode(retval))
@@ -75,7 +116,7 @@ def read_vid():
         print("Done!")
 
 
-# Press the green button in the gutter to run the script.
+
 if __name__ == '__main__':
     global src
     global dest_folder

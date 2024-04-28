@@ -1,36 +1,23 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-import qrcode
-import numpy as np
-import cv2
-import base64
-import sys
 import os
+import sys
+import base64
 import math
-from tqdm import tqdm
 import hashlib
 import json
+import qrcode
+import numpy as np
+from multiprocessing import Pool, cpu_count
+import av
+from PIL import Image
 
-
-meta_data = {}
-
-width = 1080
-height = 1080
-dim = (width, height)
+# Constants
 chunk_size = 500
 frame_rate = 20.0
+width = 1080
+height = 1080
 
-
-file_size = 0
-chunk_count = 0
-
-#https://stackoverflow.com/a/519653/8328237
 def read_in_chunks(file_object, chunk_size=1024):
-    """Lazy function (generator) to read a file piece by piece.
-    Default chunk size: 1k."""
+    """Generator to read a file piece by piece."""
     while True:
         data = file_object.read(chunk_size)
         if not data:
@@ -38,90 +25,101 @@ def read_in_chunks(file_object, chunk_size=1024):
         yield data
 
 def checksum(large_file):
+    """Calculate MD5 checksum for file."""
     md5_object = hashlib.md5()
     block_size = 128 * md5_object.block_size
-    a_file = open(large_file, 'rb')
-    chunk = a_file.read(block_size)
-    while chunk:
-        md5_object.update(chunk)
+    with open(large_file, 'rb') as a_file:
         chunk = a_file.read(block_size)
-    md5_hash = md5_object.hexdigest()
+        while chunk:
+            md5_object.update(chunk)
+            chunk = a_file.read(block_size)
+    return md5_object.hexdigest()
 
-    return md5_hash
-
-def create_qr(data_str):
+def create_qr(data_str, box_size=10, error_correction_level=qrcode.constants.ERROR_CORRECT_L):
+    """Generate a QR code as a NumPy array from data string with specified box size and error correction level."""
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=1,
+        error_correction=error_correction_level,
+        box_size=box_size,
         border=4,
     )
     qr.add_data(data_str)
-    # qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
-    # print(type(img))
-    cv_img = np.array(img)
-    return cv_img[:, :, ::-1].copy()
-    # Convert RGB to BGR
-    
-    
-    
-def create_frame(chunk):
-    frame = create_qr(base64.b64encode(chunk).decode('ascii'))
-    frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
-    return frame
-from multiprocessing import Pool
+    pil_img = img.resize((width, height), Image.Resampling.NEAREST)  # Use NEAREST for less interpolation blur
+    cv_img = np.array(pil_img)
+    return cv_img[:, :, ::-1].copy()  # Convert RGB to BGR
 
-def create_video():
-    global meta_data
-    global file_size
-    global chunk_count
+
+def create_frame(chunk, frame_id):
+    """Create and save a video frame from a data chunk."""
+    frame = create_qr(base64.b64encode(chunk).decode('ascii'))
+    return frame
+
+def encode_frames(chunks):
+    """Encode chunks into frames and write to video using multiprocessing."""
+    with Pool(cpu_count()) as pool:
+        frame_ids = range(len(chunks))
+        frames = pool.starmap(create_frame, zip(chunks, frame_ids))
     
+    print("done encoding, creating video...")
+    return frames
+
+def create_video(src, dest):
+    """Create video from source file using PyAV."""
     md5_checksum = checksum(src)
     file_stats = os.stat(src)
     file_size = file_stats.st_size
     chunk_count = math.ceil(file_size / chunk_size)
 
-    meta_data["Filename"] = os.path.basename(src)
-    meta_data["ChunkCount"] = chunk_count
-    meta_data["Filehash"] = md5_checksum
-    meta_data["ConverterUrl"] = "https://github.com/karaketir16/file2video"
-    meta_data["ConverterVersion"] = "python_v1"
+    meta_data = {
+        "Filename": os.path.basename(src),
+        "ChunkCount": chunk_count,
+        "Filehash": md5_checksum,
+        "ConverterUrl": "https://github.com/karaketir16/file2video",
+        "ConverterVersion": "python_v1"
+    }
 
-    first_frame = create_qr(json.dumps(meta_data, indent=4))
-    first_frame = cv2.resize(first_frame, dim, interpolation=cv2.INTER_AREA)
+    first_frame_data = json.dumps(meta_data, indent=4)
+    first_frame = create_qr(first_frame_data)
 
+    # Open output file
+    container = av.open(dest, mode='w')
+    stream = container.add_stream('h264', rate=frame_rate)
+    stream.width = width
+    stream.height = height
+    stream.pix_fmt = 'yuv420p'
+
+    stream.options = {'crf': '40'}  # Lower values mean better quality
+
+
+    # Write the first frame
+    video_frame = av.VideoFrame.from_ndarray(first_frame, format='bgr24')
+    for packet in stream.encode(video_frame):
+        container.mux(packet)
+
+    # Process each chunk in the file
     chunks = []
-    with open(sys.argv[1], 'rb') as f:
+    with open(src, 'rb') as f:
         for piece in read_in_chunks(f, chunk_size):
             chunks.append(piece)
 
-    # Create a multiprocessing Pool
-    pool = Pool()  
-    frames = pool.map(create_frame, chunks)
+    frames = encode_frames(chunks)
 
-    # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'X264')
-    out = cv2.VideoWriter(dest, fourcc, frame_rate, dim)
-    out.write(first_frame)
     for frame in frames:
-        out.write(frame)
+        video_frame = av.VideoFrame.from_ndarray(frame, format='bgr24')
+        for packet in stream.encode(video_frame):
+            container.mux(packet)
 
-    # Release everything if job is finished
-    out.release()
+    # Finalize the video file
+    for packet in stream.encode():
+        container.mux(packet)
 
-# Press the green button in the gutter to run the script.
+    container.close()
+
 if __name__ == '__main__':
-    global src
-    global dest
     if len(sys.argv) < 3:
-        print("usage: python file2video.py source_file output_file.mp4")
-        assert False
+        print("Usage: python file2video.py source_file output_file.mp4")
+        sys.exit(1)
     src = sys.argv[1]
     dest = sys.argv[2]
-    create_video()
-
-
-#https://towardsdatascience.com/building-a-barcode-qr-code-reader-using-python-360e22dfb6e5
-
-#https://github.com/cisco/openh264/releases
+    create_video(src, dest)

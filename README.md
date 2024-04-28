@@ -9,6 +9,12 @@ First install requirements
 ```
 pip install -r requirements.txt
 ```
+
+And for ubuntu/debian
+```
+sudo apt-get install libgl1-mesa-glx ffmpeg libx264-dev
+```
+
 Then you can run to convert file to video
 ```
 python file2video.py test/test100k.txt out.mp4

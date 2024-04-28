@@ -1,3 +1,6 @@
 venv
 test_not
 .idea
+frames/
+
+myenv/
