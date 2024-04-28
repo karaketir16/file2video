@@ -4,3 +4,5 @@ test_not
 frames/
 
 myenv/
+
+__pycache__/

@@ -1,3 +1,4 @@
+from itertools import islice
 import os
 import sys
 import base64
@@ -10,8 +11,10 @@ from multiprocessing import Pool, cpu_count
 import av
 from PIL import Image
 
+from checksum import checksum
+
 # Constants
-chunk_size = 500
+chunk_size = 500  # Adjust this as per the data capacity of QR codes and your specific requirements
 frame_rate = 20.0
 width = 1080
 height = 1080
@@ -24,17 +27,6 @@ def read_in_chunks(file_object, chunk_size=1024):
             break
         yield data
 
-def checksum(large_file):
-    """Calculate MD5 checksum for file."""
-    md5_object = hashlib.md5()
-    block_size = 128 * md5_object.block_size
-    with open(large_file, 'rb') as a_file:
-        chunk = a_file.read(block_size)
-        while chunk:
-            md5_object.update(chunk)
-            chunk = a_file.read(block_size)
-    return md5_object.hexdigest()
-
 def create_qr(data_str, box_size=10, error_correction_level=qrcode.constants.ERROR_CORRECT_L):
     """Generate a QR code as a NumPy array from data string with specified box size and error correction level."""
     qr = qrcode.QRCode(
@@ -46,23 +38,18 @@ def create_qr(data_str, box_size=10, error_correction_level=qrcode.constants.ERR
     qr.add_data(data_str)
     img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
     pil_img = img.resize((width, height), Image.Resampling.NEAREST)  # Use NEAREST for less interpolation blur
-    cv_img = np.array(pil_img)
-    return cv_img[:, :, ::-1].copy()  # Convert RGB to BGR
+    return np.array(pil_img)
 
+def process_chunk(data):
+    """Encode data chunk into QR and return as image."""
+    return create_qr(base64.b64encode(data).decode('ascii'))
 
-def create_frame(chunk, frame_id):
-    """Create and save a video frame from a data chunk."""
-    frame = create_qr(base64.b64encode(chunk).decode('ascii'))
-    return frame
-
-def encode_frames(chunks):
-    """Encode chunks into frames and write to video using multiprocessing."""
-    with Pool(cpu_count()) as pool:
-        frame_ids = range(len(chunks))
-        frames = pool.starmap(create_frame, zip(chunks, frame_ids))
-    
-    print("done encoding, creating video...")
-    return frames
+def encode_and_write_frames(frames, stream, container):
+    """Encode frames and write to video container."""
+    for frame in frames:
+        video_frame = av.VideoFrame.from_ndarray(frame, format='rgb24')
+        for packet in stream.encode(video_frame):
+            container.mux(packet)
 
 def create_video(src, dest):
     """Create video from source file using PyAV."""
@@ -88,32 +75,25 @@ def create_video(src, dest):
     stream.width = width
     stream.height = height
     stream.pix_fmt = 'yuv420p'
-
-    stream.options = {'crf': '40'}  # Lower values mean better quality
-
+    stream.options = {'crf': '40'}
 
     # Write the first frame
-    video_frame = av.VideoFrame.from_ndarray(first_frame, format='bgr24')
+    video_frame = av.VideoFrame.from_ndarray(first_frame, format='rgb24')
     for packet in stream.encode(video_frame):
         container.mux(packet)
 
-    # Process each chunk in the file
-    chunks = []
-    with open(src, 'rb') as f:
-        for piece in read_in_chunks(f, chunk_size):
-            chunks.append(piece)
-
-    frames = encode_frames(chunks)
-
-    for frame in frames:
-        video_frame = av.VideoFrame.from_ndarray(frame, format='bgr24')
-        for packet in stream.encode(video_frame):
-            container.mux(packet)
+    # Process chunks in batches using multiprocessing
+    with open(src, 'rb') as f, Pool(cpu_count()) as pool:
+        while True:
+            chunks = list(islice(read_in_chunks(f, chunk_size), cpu_count()))
+            if not chunks:
+                break
+            frames = pool.map(process_chunk, chunks)
+            encode_and_write_frames(frames, stream, container)
 
     # Finalize the video file
     for packet in stream.encode():
         container.mux(packet)
-
     container.close()
 
 if __name__ == '__main__':

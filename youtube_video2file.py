@@ -1,99 +1,39 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
 import cv2
-import base64
 import sys
-import hashlib
-import json
-from pyzbar import pyzbar
+import yt_dlp
 import os
-from tqdm import tqdm
-import pafy
 
-def checksum(large_file):
-    md5_object = hashlib.md5()
-    block_size = 128 * md5_object.block_size
-    a_file = open(large_file, 'rb')
-    chunk = a_file.read(block_size)
-    while chunk:
-        md5_object.update(chunk)
-        chunk = a_file.read(block_size)
-    md5_hash = md5_object.hexdigest()
+from video2file import read_video
 
-    return md5_hash
-
-
-def read_the_barc(frame):
-    barcodes = pyzbar.decode(frame)
-    for barcode in barcodes:
-        barcode_info = barcode.data.decode('utf-8')
-        return True, barcode_info
-    return False, 0
-
-def read_vid():
-    url = src
-    video = pafy.new(url)
-    best = video.getbest(preftype="mp4")
-
-    cap = cv2.VideoCapture(best.url)
-
-    # cap = cv2.VideoCapture(src)
-    ret, first_frame = cap.read()
-    res, retval = read_the_barc(first_frame)
-    if not res:
-        print("Cannot read first frame QR")
-        return
-    meta_data = json.loads(retval)
-
-    # type MetaData struct {
-    # 	Filename         string
-    # 	ChunkCount       int
-    # 	Filehash         string
-    # 	ConverterUrl     string
-    # 	ConverterVersion string
-    # }
-
-    print(retval)
-    dest = os.path.join(dest_folder, meta_data["Filename"])
-    file = open(dest, "wb")
-
-    pbar = tqdm(total=meta_data["ChunkCount"])
-    while(cap.isOpened()):
-        ret, frame = cap.read()
-        if ret:
-            res, retval = read_the_barc(frame)
-            assert res
-            file.write(base64.b64decode(retval))
-            pbar.update(1)
-        else:
-            break
-
-    pbar.close()
-    file.close()
-
-    md5_sum = checksum(dest)
-    if md5_sum != meta_data["Filehash"]:
-        print("Data corrupted")
-    else:
-        print("Done!")
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    global src
-    global dest_folder
     if len(sys.argv) < 3:
-        print("usage: python video2file.py \"https://video_url\" destination_folder")
-        assert False
+        print("Usage: python video2file.py \"https://video_url\" destination_folder")
+        sys.exit(1)
+
     src = sys.argv[1]
     dest_folder = sys.argv[2]
-    read_vid()
+    output_file = f"{dest_folder}/downloaded_video.mp4"
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # Create a yt-dlp configuration to download the video
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': output_file,
+        'noplaylist': True,
+        'quiet': True,
+        'merge_output_format': 'mp4',  # Ensure the output is mp4 if separate streams are downloaded
+    }
 
+    # Use yt-dlp to download the video
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([src])
 
-#https://towardsdatascience.com/building-a-barcode-qr-code-reader-using-python-360e22dfb6e5
+    # Check if the file is downloaded and exists
+    if os.path.exists(output_file):
+        # Open the downloaded video file using OpenCV
+        cap = cv2.VideoCapture(output_file)
 
+        # Read and process the video
+        read_video(cap, dest_folder)
+    else:
+        print("Failed to download video.")
+        sys.exit(1)
