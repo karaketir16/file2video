@@ -11,7 +11,7 @@ We need opengl, glib, zbar, ffmpeg
 
 install it ubuntu/debian
 ```
-sudo apt-get install libgl1 libglib2.0-dev libzbar0 ffmpeg
+sudo apt-get install libgl1 libglib2.0-0 libzbar0 ffmpeg
 ```
 
 Then you can run to convert file to video
@@ -31,3 +31,4 @@ python youtube_video2file.py "https://youtu.be/z7Op3XNvWxw" .
 https://youtu.be/z7Op3XNvWxw
 
 ### Notes
+It shows `WARNING: decoder/databar.c:1248: _zbar_decode_databar: Assertion "seg->finder >= 0" failed.`, but this warning does not create problem for decoding.

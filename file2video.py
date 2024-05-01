@@ -1,110 +1,82 @@
-from itertools import islice
-import os
+from encode import create_video
+from decode_video import decode
+from youtube_decode import youtube_decode
+import argparse
 import sys
-import base64
-import math
-import json
-import qrcode
-import numpy as np
-from multiprocessing import Pool, cpu_count
-import av
-from PIL import Image
-from tqdm import tqdm
-
-from checksum import checksum
-
-# Constants
-chunk_size = 500  # Adjust this as per the data capacity of QR codes and your specific requirements
-frame_rate = 20.0
-width = 1080
-height = 1080
-
-def read_in_chunks(file_object, chunk_size=1024):
-    """Generator to read a file piece by piece."""
-    while True:
-        data = file_object.read(chunk_size)
-        if not data:
-            break
-        yield data
-
-def create_qr(data_str, box_size=10, error_correction_level=qrcode.constants.ERROR_CORRECT_L):
-    """Generate a QR code as a NumPy array from data string with specified box size and error correction level."""
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=error_correction_level,
-        box_size=box_size,
-        border=4,
-    )
-    qr.add_data(data_str)
-    img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
-    pil_img = img.resize((width, height), Image.Resampling.NEAREST)  # Use NEAREST for less interpolation blur
-    return np.array(pil_img)
-
-def process_chunk(data):
-    """Encode data chunk into QR and return as image."""
-    return create_qr(base64.b64encode(data).decode('ascii'))
-
-def encode_and_write_frames(frames, stream, container):
-    """Encode frames and write to video container."""
-    for frame in frames:
-        video_frame = av.VideoFrame.from_ndarray(frame, format='rgb24')
-        for packet in stream.encode(video_frame):
-            container.mux(packet)
-
-def create_video(src, dest):
-    """Create video from source file using PyAV."""
-    md5_checksum = checksum(src)
-    file_stats = os.stat(src)
-    file_size = file_stats.st_size
-    chunk_count = math.ceil(file_size / chunk_size)
-
-    pbar = tqdm(total=chunk_count, desc="Generating Frames")
-
-    meta_data = {
-        "Filename": os.path.basename(src),
-        "ChunkCount": chunk_count,
-        "Filehash": md5_checksum,
-        "ConverterUrl": "https://github.com/karaketir16/file2video",
-        "ConverterVersion": "python_v1"
-    }
-
-    first_frame_data = json.dumps(meta_data, indent=4)
-    first_frame = create_qr(first_frame_data)
-
-    # Open output file
-    container = av.open(dest, mode='w')
-    stream = container.add_stream('h264', rate=frame_rate)
-    stream.width = width
-    stream.height = height
-    stream.pix_fmt = 'yuv420p'
-    stream.options = {'crf': '40'}
-
-    # Write the first frame
-    video_frame = av.VideoFrame.from_ndarray(first_frame, format='rgb24')
-    for packet in stream.encode(video_frame):
-        container.mux(packet)
-
-    # Process chunks in batches using multiprocessing
-    with open(src, 'rb') as f, Pool(cpu_count()) as pool:
-        while True:
-            chunks = list(islice(read_in_chunks(f, chunk_size), cpu_count()))
-            if not chunks:
-                break
-            frames = pool.map(process_chunk, chunks)
-            encode_and_write_frames(frames, stream, container)
-            pbar.update(len(frames))
+import os
 
 
+def is_valid_path_docker(destination_folder):
+    # Get absolute path of the destination folder
+    abs_dest_folder = os.path.abspath(destination_folder)
+    # Get absolute path of the current directory
+    current_directory = os.path.abspath('.')
+    # Ensure the destination folder is a subdirectory of the current directory
+    return os.path.commonpath([abs_dest_folder]) == os.path.commonpath([abs_dest_folder, current_directory])
 
-    # Finalize the video file
-    for packet in stream.encode():
-        container.mux(packet)
-    container.close()
 
-if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print("Usage: python file2video.py source_file output_file.mp4")
-        sys.exit(1)
-    src = sys.argv[1]
-    dest = sys.argv[2]
-    create_video(src, dest)
+def enc_file(source_file, output_video):
+    print (f"Encoding {source_file} to {output_video}")
+    create_video(source_file, output_video)
+
+def dec_video(source_video, destination_folder, docker_mode):
+    if docker_mode:
+        if not is_valid_path_docker(destination_folder):
+            print("Destination folder should be subfolder of the current directory")
+            return
+    print (f"Decoding {source_video} to {destination_folder}")
+    decode(source_video, destination_folder)
+
+def y_decode(video_url, destination_folder, docker_mode):
+    if docker_mode:
+        if not is_valid_path_docker(destination_folder):
+            print("Destination folder should be subfolder of the current directory")
+            return
+    print (f"Decoding {video_url} to {destination_folder}")
+    youtube_decode(video_url, destination_folder)
+
+
+def main():
+
+    # First, check if '--docker' is in the command line arguments
+    docker_mode = '--docker' in sys.argv
+    if docker_mode:
+        sys.argv.remove('--docker')  # Remove it so it doesn't interfere with the main parser
+
+    docker_usage = """\
+docker run --rm -v $(pwd):/data karaketir16/file2video [-h]  [--encode source_file output_video] 
+                                                        [--decode source_video destination_folder] 
+                                                        [--youtube-decode youtube_url destination_folder]"""
+    
+    if docker_mode:
+        parser = argparse.ArgumentParser(description="Program to encode files into videos and decode videos back to files.", usage=docker_usage)
+    else:
+        parser = argparse.ArgumentParser(description="Program to encode files into videos and decode videos back to files.")
+
+    # Optional argument for encoding
+    parser.add_argument("--encode", nargs=2, metavar=('source_file', 'output_video'), 
+                        help="Encode a file into a video: source_file output_video.mp4")
+    
+    # Optional argument for decoding
+    parser.add_argument("--decode", nargs=2, metavar=('source_video', 'destination_folder'), 
+                        help="Decode a video to a file: source_video.mp4 destination_folder")
+    
+    # Optional argument for YouTube video decoding
+    parser.add_argument("--youtube-decode", nargs=2, metavar=('youtube_url', 'destination_folder'), 
+                        help="Decode a video from a YouTube URL to a file: 'youtube_url' destination_folder")
+
+    
+    args = parser.parse_args()
+
+    # Check which command is used and call the corresponding function
+    if args.encode:
+        enc_file(*args.encode)
+    elif args.decode:
+        dec_video(*args.decode, docker_mode)
+    elif args.youtube_decode:
+        y_decode(*args.youtube_decode, docker_mode)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

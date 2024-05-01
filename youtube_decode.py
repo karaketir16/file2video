@@ -4,15 +4,9 @@ import yt_dlp
 import os
 from datetime import datetime
 
-from video2file import read_video
+from decode_video import decode_video
 
-if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print("Usage: python video2file.py \"https://video_url\" destination_folder")
-        sys.exit(1)
-
-    src = sys.argv[1]
-    dest_folder = sys.argv[2]
+def youtube_decode(src, dest_folder):
     base_filename = "downloaded_video"
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     output_file = f"{dest_folder}/{base_filename}_{timestamp}.mp4"
@@ -36,7 +30,17 @@ if __name__ == '__main__':
         cap = cv2.VideoCapture(output_file)
 
         # Read and process the video
-        read_video(cap, dest_folder)
+        decode_video(cap, dest_folder)
     else:
         print("Failed to download video.")
         sys.exit(1)
+
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        print("Usage: python video2file.py \"https://video_url\" destination_folder")
+        sys.exit(1)
+
+    src = sys.argv[1]
+    dest_folder = sys.argv[2]
+    youtube_decode(src, dest_folder)
+   

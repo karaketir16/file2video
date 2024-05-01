@@ -32,7 +32,9 @@ def process_frame(frame):
         return None  # Return None if no barcode is found
     return data
 
-def read_video(cap, dest_folder):
+def decode_video(cap, dest_folder):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     pbar = tqdm(total=total_frames, desc="Processing Frames")
@@ -86,6 +88,9 @@ def read_video(cap, dest_folder):
     logging.info("File integrity verified: ")
     logging.info(dest)
 
+def decode(src, dest_folder):
+    cap = cv2.VideoCapture(src)
+    decode_video(cap, dest_folder)
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -94,6 +99,5 @@ if __name__ == '__main__':
     src = sys.argv[1]
     dest_folder = sys.argv[2]
 
-    cap = cv2.VideoCapture(src)
+    decode(src, dest_folder)
 
-    read_video(cap, dest_folder)
