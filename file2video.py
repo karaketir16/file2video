@@ -3,38 +3,18 @@ from decode_video import decode
 from youtube_decode import youtube_decode
 import argparse
 import sys
-import os
-
-
-def is_valid_path_docker(destination_folder):
-    # Get absolute path of the destination folder
-    abs_dest_folder = os.path.abspath(destination_folder)
-    # Get absolute path of the current directory
-    current_directory = os.path.abspath('.')
-    # Ensure the destination folder is a subdirectory of the current directory
-    return os.path.commonpath([abs_dest_folder]) == os.path.commonpath([abs_dest_folder, current_directory])
-
 
 def enc_file(source_file, output_video):
     print (f"Encoding {source_file} to {output_video}")
     create_video(source_file, output_video)
 
 def dec_video(source_video, destination_folder, docker_mode):
-    if docker_mode:
-        if not is_valid_path_docker(destination_folder):
-            print("Destination folder should be subfolder of the current directory")
-            return
     print (f"Decoding {source_video} to {destination_folder}")
     decode(source_video, destination_folder)
 
 def y_decode(video_url, destination_folder, docker_mode):
-    if docker_mode:
-        if not is_valid_path_docker(destination_folder):
-            print("Destination folder should be subfolder of the current directory")
-            return
     print (f"Decoding {video_url} to {destination_folder}")
     youtube_decode(video_url, destination_folder)
-
 
 def main():
 

@@ -51,7 +51,7 @@ def encode_and_write_frames(frames, stream, container):
         for packet in stream.encode(video_frame):
             container.mux(packet)
 
-def create_video(src, dest):
+def create_video(src, dest, read_file_lazy = False):
     """Create video from source file using PyAV."""
     md5_checksum = checksum(src)
     file_stats = os.stat(src)
@@ -86,8 +86,23 @@ def create_video(src, dest):
 
     # Process chunks in batches using multiprocessing
     with open(src, 'rb') as f, Pool(cpu_count()) as pool:
+        entire_file = []
+        if not read_file_lazy:
+            entire_file = f.read()
+        i = 0
         while True:
-            chunks = list(islice(read_in_chunks(f, chunk_size), cpu_count()))
+
+            chunks = []
+
+            if read_file_lazy:
+                chunks = list(islice(read_in_chunks(f, chunk_size), cpu_count()))
+            else:
+                for _ in range(cpu_count()):
+                    chunks.append(entire_file[i: i + chunk_size])
+                    if not chunks[-1]: #empty
+                        chunks.pop()
+                        break
+                    i = i + chunk_size
             if not chunks:
                 break
             frames = pool.map(process_chunk, chunks)

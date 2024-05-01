@@ -8,5 +8,5 @@ menv
 
 __pycache__/
 
-*.txt
+test*.txt
 *.mp4
