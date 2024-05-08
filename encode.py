@@ -10,14 +10,17 @@ from multiprocessing import Pool, cpu_count
 import av
 from PIL import Image
 from tqdm import tqdm
+from reedsolo import RSCodec
+from v2.v2 import encode_to_image
 
+from createQR import create_qr
 from checksum import checksum
 
-# Constants
-chunk_size = 500  # Adjust this as per the data capacity of QR codes and your specific requirements
-frame_rate = 20.0
-width = 1080
-height = 1080
+from common import *
+
+
+rs = RSCodec(reedEC)
+
 
 def read_in_chunks(file_object, chunk_size=1024):
     """Generator to read a file piece by piece."""
@@ -27,22 +30,25 @@ def read_in_chunks(file_object, chunk_size=1024):
             break
         yield data
 
-def create_qr(data_str, box_size=10, error_correction_level=qrcode.constants.ERROR_CORRECT_L):
-    """Generate a QR code as a NumPy array from data string with specified box size and error correction level."""
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=error_correction_level,
-        box_size=box_size,
-        border=4,
-    )
-    qr.add_data(data_str)
-    img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
-    pil_img = img.resize((width, height), Image.Resampling.NEAREST)  # Use NEAREST for less interpolation blur
-    return np.array(pil_img)
 
 def process_chunk(data):
-    """Encode data chunk into QR and return as image."""
-    return create_qr(base64.b64encode(data).decode('ascii'))
+    """Encode data chunk into BitCode and return as image."""
+
+    print("LEN", len(data))
+    print("Cunksize: ", chunk_size)
+
+    data_encoded = rs.encode(data)
+    length = len(data)
+
+    length_encoded = rs.encode(length.to_bytes(4,'big'))
+
+    data = length_encoded + data_encoded
+
+    print("HEX: ", data.hex())
+    
+    # exit(0)
+
+    return encode_to_image(data, grid_size, 1080)
 
 def encode_and_write_frames(frames, stream, container):
     """Encode frames and write to video container."""
@@ -57,6 +63,7 @@ def create_video(src, dest, read_file_lazy = False):
     file_stats = os.stat(src)
     file_size = file_stats.st_size
     chunk_count = math.ceil(file_size / chunk_size)
+    print("chunk count:", chunk_count)
 
     pbar = tqdm(total=chunk_count, desc="Generating Frames")
 
@@ -64,12 +71,13 @@ def create_video(src, dest, read_file_lazy = False):
         "Filename": os.path.basename(src),
         "ChunkCount": chunk_count,
         "Filehash": md5_checksum,
-        "ConverterUrl": "https://github.com/karaketir16/file2video",
-        "ConverterVersion": "python_v1"
+        "ConverterUrl": "https://github.com/karaketir16/file2video/tree/v2",
+        "ConverterVersion": "python_v2",
+        "FileSize:": file_size
     }
 
     first_frame_data = json.dumps(meta_data, indent=4)
-    first_frame = create_qr(first_frame_data)
+    first_frame = create_qr(first_frame_data, width, height)
 
     # Open output file
     container = av.open(dest, mode='w')
@@ -105,6 +113,7 @@ def create_video(src, dest, read_file_lazy = False):
                     i = i + chunk_size
             if not chunks:
                 break
+
             frames = pool.map(process_chunk, chunks)
             encode_and_write_frames(frames, stream, container)
             pbar.update(len(frames))

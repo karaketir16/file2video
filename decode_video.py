@@ -8,28 +8,43 @@ from pyzbar import pyzbar
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from checksum import checksum
+from reedsolo import RSCodec
+
+from v2.v2 import decode_from_image
+
+from common import *
+
+rs = RSCodec(reedEC)
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def apply_preprocessing(frame):
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    _, threshold = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
-    return threshold
-
-def read_barcode(preprocessed_frame):
-    barcodes = pyzbar.decode(preprocessed_frame)
+def read_barcode(frame):
+    barcodes = pyzbar.decode(frame)
     for barcode in barcodes:
         barcode_info = barcode.data.decode('utf-8')
         return True, barcode_info
     return False, None
 
-def process_frame(frame):
-    preprocessed_frame = apply_preprocessing(frame)
-    success, data = read_barcode(preprocessed_frame)
+def process_frameQR(frame):
+    success, data = read_barcode(frame)
     if not success:
         logging.warning("Failed to read QR code")
         return None  # Return None if no barcode is found
+    return data
+
+def process_frame(frame):
+    data = decode_from_image(frame, grid_size)
+
+    print("HEX: ", data.hex())
+
+    length_encoded = data[ : (4 + reedEC)]
+    length_decoded, _, _ = rs.decode(length_encoded)
+
+    length = int.from_bytes(length_decoded, 'big')
+
+    data, _, _ = rs.decode(data[(4 + reedEC) : length])
+
     return data
 
 def decode_video(cap, dest_folder):
@@ -44,7 +59,7 @@ def decode_video(cap, dest_folder):
         logging.error("Cannot read first frame")
         return
 
-    metadata = process_frame(first_frame)
+    metadata = process_frameQR(first_frame)
     if metadata is None:
         logging.error("No QR code in first frame; cannot proceed")
         return
