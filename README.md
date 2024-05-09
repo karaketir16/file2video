@@ -2,6 +2,9 @@
 
 Convert any file to video. This allows you to upload it to YouTube and use YouTube as unlimited storage. The output video file size is typically about 3.2 times the size of the input file. If you upload video to youtube, please wait for HD processing of youtube.
 
+## Note
+If you want to decode QR code version. please check [V1](https://github.com/karaketir16/file2video/releases/tag/v1)
+
 ### Example Usage
 First, install the requirements:
 ```
