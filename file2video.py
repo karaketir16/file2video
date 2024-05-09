@@ -4,17 +4,19 @@ from youtube_decode import youtube_decode
 import argparse
 import sys
 
+from common import *
+
 def enc_file(source_file, output_video):
     print (f"Encoding {source_file} to {output_video}")
-    create_video(source_file, output_video)
+    create_video(source_file, output_video, global_reedEC, global_gridSize)
 
 def dec_video(source_video, destination_folder, docker_mode):
     print (f"Decoding {source_video} to {destination_folder}")
-    decode(source_video, destination_folder)
+    decode(source_video, destination_folder, global_reedEC, global_gridSize)
 
 def y_decode(video_url, destination_folder, docker_mode):
     print (f"Decoding {video_url} to {destination_folder}")
-    youtube_decode(video_url, destination_folder)
+    youtube_decode(video_url, destination_folder, global_reedEC, global_gridSize)
 
 def main():
 

@@ -1,22 +1,20 @@
 from itertools import islice
 import os
 import sys
-import base64
 import math
 import json
-import qrcode
-import numpy as np
 from multiprocessing import Pool, cpu_count
 import av
-from PIL import Image
 from tqdm import tqdm
 from reedsolo import RSCodec
 from v2.v2 import encode_to_image
 
-from createQR import create_qr
 from checksum import checksum
 
 from common import *
+
+frame_rate = 20.0
+width_height = 1080
 
 
 rs = None
@@ -40,7 +38,7 @@ def process_chunk(data):
 
     data = length_encoded + data_encoded
 
-    return encode_to_image(data, grid_size, 1080)
+    return encode_to_image(data, grid_size, width_height)
 
 def encode_and_write_frames(frames, stream, container):
     """Encode frames and write to video container."""
@@ -49,17 +47,15 @@ def encode_and_write_frames(frames, stream, container):
         for packet in stream.encode(video_frame):
             container.mux(packet)
 
-def create_video(src, dest, reedEC, grid, read_file_lazy = False):
+def create_video(src, dest, reedEC, grid_size, read_file_lazy = False):
     """Create video from source file using PyAV."""
 
-    global rs, grid_size
-    
-    grid_size = grid
-    rs = RSCodec(reedEC)
+    globals()['grid_size'] = grid_size
+    globals()['rs'] = RSCodec(nsym = reedEC, nsize = global_reedN)
 
-    reedK = GreedN - reedEC
+    reedK = global_reedN - reedEC
 
-    chunk_size = (reedK * ((grid_size*grid_size) // (GreedN * 8))) - (4 + reedEC)
+    chunk_size = (reedK * ((grid_size*grid_size) // (global_reedN * 8))) - (4 + reedEC)
 
     md5_checksum = checksum(src)
     file_stats = os.stat(src)
@@ -79,13 +75,13 @@ def create_video(src, dest, reedEC, grid, read_file_lazy = False):
     }
 
     first_frame_data = json.dumps(meta_data, indent=4)
-    first_frame = create_qr(first_frame_data, width, height)
+    first_frame = process_chunk(first_frame_data.encode('utf-8'))
 
     # Open output file
     container = av.open(dest, mode='w')
     stream = container.add_stream('h264', rate=frame_rate)
-    stream.width = width
-    stream.height = height
+    stream.width = width_height
+    stream.height = width_height
     stream.pix_fmt = 'yuv420p'
     stream.options = {'crf': '40'}
 
@@ -133,4 +129,4 @@ if __name__ == '__main__':
         sys.exit(1)
     src = sys.argv[1]
     dest = sys.argv[2]
-    create_video(src, dest, GreedEC, Ggrid_size)
+    create_video(src, dest, global_reedEC, global_gridSize)

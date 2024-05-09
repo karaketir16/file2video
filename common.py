@@ -1,13 +1,6 @@
-GreedN = 255
+# defaults
 
-GreedEC = 10
-
-GreedK = GreedN - GreedEC
-
-Ggrid_size = 300
-
-# Constants
-frame_rate = 20.0
-width = 1080
-height = 1080
-
+global_reedN = 255
+global_reedEC = 10
+GreedK = global_reedN - global_reedEC
+global_gridSize = 270

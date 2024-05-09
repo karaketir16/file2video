@@ -3,10 +3,11 @@ import sys
 import yt_dlp
 import os
 from datetime import datetime
+from common import *
 
 from decode_video import decode_video
 
-def youtube_decode(src, dest_folder):
+def youtube_decode(src, dest_folder, reedEC, grid_size):
     base_filename = "downloaded_video"
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     output_file = f"{dest_folder}/{base_filename}_{timestamp}.mp4"
@@ -30,7 +31,7 @@ def youtube_decode(src, dest_folder):
         cap = cv2.VideoCapture(output_file)
 
         # Read and process the video
-        decode_video(cap, dest_folder)
+        decode_video(cap, dest_folder, reedEC, grid_size)
     else:
         print("Failed to download video.")
         sys.exit(1)
@@ -42,5 +43,5 @@ if __name__ == '__main__':
 
     src = sys.argv[1]
     dest_folder = sys.argv[2]
-    youtube_decode(src, dest_folder)
+    youtube_decode(src, dest_folder, global_reedEC, global_gridSize)
    

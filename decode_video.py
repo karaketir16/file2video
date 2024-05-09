@@ -2,17 +2,15 @@ import cv2
 import json
 import os
 import sys
-import base64
 import logging
-from pyzbar import pyzbar
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from checksum import checksum
 from reedsolo import RSCodec
 
-from v2.v2 import decode_from_image
-
 from common import *
+
+from v2.v2 import decode_from_image
 
 rs = None
 reedEC = None
@@ -20,20 +18,6 @@ grid_size = None
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-def read_barcode(frame):
-    barcodes = pyzbar.decode(frame)
-    for barcode in barcodes:
-        barcode_info = barcode.data.decode('utf-8')
-        return True, barcode_info
-    return False, None
-
-def process_frameQR(frame):
-    success, data = read_barcode(frame)
-    if not success:
-        logging.warning("Failed to read QR code")
-        return None  # Return None if no barcode is found
-    return data
 
 def process_frame(frame):
     data = decode_from_image(frame, grid_size)
@@ -52,16 +36,11 @@ def process_frame(frame):
 
     return data
 
-def decode_video(cap, dest_folder, reedEC_l, grid):
-    global rs
-    global grid_size
-    global reedEC
+def decode_video(cap, dest_folder, reedEC, grid_size):
 
-    reedEC = reedEC_l
-
-    grid_size = grid
-
-    rs = RSCodec(reedEC)
+    globals()['grid_size'] = grid_size
+    globals()['rs'] = RSCodec(nsym = reedEC, nsize = global_reedN)
+    globals()['reedEC'] = reedEC
 
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
@@ -74,11 +53,11 @@ def decode_video(cap, dest_folder, reedEC_l, grid):
         logging.error("Cannot read first frame")
         return
 
-    metadata = process_frameQR(first_frame)
+    metadata = process_frame(first_frame)
     if metadata is None:
         logging.error("No QR code in first frame; cannot proceed")
         return
-    meta_data = json.loads(metadata)
+    meta_data = json.loads(metadata.decode('utf8'))
     dest = os.path.join(dest_folder, meta_data["Filename"])
     file = open(dest, "wb")
 
@@ -107,17 +86,16 @@ def decode_video(cap, dest_folder, reedEC_l, grid):
             if done:
                 break
 
-
     file.close()
     cap.release()
     pbar.close()
 
-    logging.info("Verify file integrity")
+    logging.info("Verifying file integrity for %s", dest)
     md5_sum = checksum(dest)
     if md5_sum != meta_data["Filehash"]:
-        raise "Data corrupted"
-    logging.info("File integrity verified: ")
-    logging.info(dest)
+        logging.error("Data corrupted for file %s", dest)
+        raise ValueError("Data corrupted")
+    logging.info("File integrity verified: %s", dest)
 
 def decode(src, dest_folder, reedEC, grid_size):
     cap = cv2.VideoCapture(src)
@@ -130,5 +108,5 @@ if __name__ == '__main__':
     src = sys.argv[1]
     dest_folder = sys.argv[2]
 
-    decode(src, dest_folder, GreedEC, Ggrid_size)
+    decode(src, dest_folder, global_reedEC, global_gridSize)
 

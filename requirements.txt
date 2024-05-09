@@ -2,7 +2,6 @@ av==12.0.0
 numpy==1.26.4
 opencv-python==4.9.0.80
 pillow==10.3.0
-pyzbar==0.1.9
-qrcode==7.4.2
 tqdm==4.66.2
 yt-dlp==2024.4.9
+reedsolo==1.7.0

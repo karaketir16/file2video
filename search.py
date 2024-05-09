@@ -6,12 +6,12 @@ import numpy as np
 import csv
 
 def setup_csv():
-    with open('./res/test_results.csv', 'w', newline='') as file:
+    with open('./res2/test_results.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Iteration', 'ReedEC', 'Grid Size', 'Success', 'Video Size (bytes)'])
 
 def update_csv(iteration, reedEC, grid_size, success, video_size):
-    with open('./res/test_results.csv', 'a', newline='') as file:
+    with open('./res2/test_results.csv', 'a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([iteration, reedEC, grid_size, success, video_size])
 
@@ -28,17 +28,24 @@ def test_parameters(source_file, output_video, destination_folder, reedEC, grid_
 
 def plot_results(results, reedEC_values, grid_size_values, iteration):
     fig, ax = plt.subplots(figsize=(10, 5))
+    # Convert grid_size_values to string for categorical plotting
+    grid_size_labels = [str(g) for g in grid_size_values]
+    
     for i in range(len(reedEC_values)):
         for j in range(len(grid_size_values)):
             if results[i, j] is not None:
                 color = 'green' if results[i, j][0] else 'red'
-                ax.scatter(grid_size_values[j], reedEC_values[i], color=color, s=5)
+                ax.scatter(grid_size_labels[j], reedEC_values[i], color=color, s=50)  # Increase marker size for better visibility
+
     ax.set_xlabel('Grid Size')
     ax.set_ylabel('Reed EC')
     ax.set_title(f'Parameter Test Results Iteration {iteration:05} (Green: Successful, Red: Failed)')
     ax.grid(True)
-    plt.savefig(f'./res/parameter_test_results_iteration_{iteration:05}.png')
+    plt.xticks(rotation=45)  # Rotate x labels for better readability if needed
+    plt.tight_layout()  # Adjust layout to make room for label rotation
+    plt.savefig(f'./res2/parameter_test_results_iteration_{iteration:05}.png')
     plt.close(fig)
+
 
 # Set up CSV file before starting tests
 setup_csv()
@@ -52,7 +59,7 @@ grid_size_range = (50, 401)
 
 # Generate orders
 reedEC_values = np.arange(reedEC_range[0], reedEC_range[1] + 1)
-grid_size_values = np.arange(grid_size_range[0], grid_size_range[1] + 1)
+grid_size_values = np.array([54, 108, 135, 180, 216, 270, 360, 540, 1080])
 
 # Generate all combinations of reedEC and grid_size
 parameter_combinations = [(r, g) for r in reedEC_values for g in grid_size_values]
@@ -65,6 +72,13 @@ results = np.full((len(reedEC_values), len(grid_size_values)), fill_value=None, 
 for iteration, (reedEC, grid_size) in enumerate(parameter_combinations):
     reed_index = np.where(reedEC_values == reedEC)[0][0]
     grid_index = np.where(grid_size_values == grid_size)[0][0]
+
+    chunk_size = ((255 - reedEC) * ((grid_size*grid_size) // (255 * 8))) - (4 + reedEC)
+
+    if chunk_size <= 0:
+        update_csv(iteration, reedEC, grid_size, False, -1)
+        continue
+
     success, video_size = test_parameters(source_file, output_video, destination_folder, reedEC, grid_size)
     results[reed_index, grid_index] = (success, video_size)
     update_csv(iteration, reedEC, grid_size, success, video_size)
