@@ -17,7 +17,7 @@ def youtube_decode(src, dest_folder, reedEC, grid_size):
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': output_file,
         'noplaylist': True,
-        'quiet': True,
+       'quiet': True,
         'merge_output_format': 'mp4',  # Ensure the output is mp4 if separate streams are downloaded
     }
 

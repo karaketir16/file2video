@@ -31,8 +31,8 @@ def process_frame(frame):
 
     data, _, errata_pos = rs.decode(data_encoded)
 
-    if len(errata_pos) > 0:
-        print("Fixed Number of Errors in this frame: ", len(errata_pos))
+#    if len(errata_pos) > 0:
+#        print("Fixed Number of Errors in this frame: ", len(errata_pos))
 
     return data
 
