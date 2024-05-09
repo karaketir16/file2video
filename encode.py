@@ -19,8 +19,8 @@ from checksum import checksum
 from common import *
 
 
-rs = RSCodec(reedEC)
-
+rs = None
+grid_size = None
 
 def read_in_chunks(file_object, chunk_size=1024):
     """Generator to read a file piece by piece."""
@@ -33,20 +33,12 @@ def read_in_chunks(file_object, chunk_size=1024):
 
 def process_chunk(data):
     """Encode data chunk into BitCode and return as image."""
-
-    print("LEN", len(data))
-    print("Cunksize: ", chunk_size)
-
     data_encoded = rs.encode(data)
-    length = len(data)
+    length = len(data_encoded)
 
     length_encoded = rs.encode(length.to_bytes(4,'big'))
 
     data = length_encoded + data_encoded
-
-    print("HEX: ", data.hex())
-    
-    # exit(0)
 
     return encode_to_image(data, grid_size, 1080)
 
@@ -57,8 +49,18 @@ def encode_and_write_frames(frames, stream, container):
         for packet in stream.encode(video_frame):
             container.mux(packet)
 
-def create_video(src, dest, read_file_lazy = False):
+def create_video(src, dest, reedEC, grid, read_file_lazy = False):
     """Create video from source file using PyAV."""
+
+    global rs, grid_size
+    
+    grid_size = grid
+    rs = RSCodec(reedEC)
+
+    reedK = GreedN - reedEC
+
+    chunk_size = (reedK * ((grid_size*grid_size) // (GreedN * 8))) - (4 + reedEC)
+
     md5_checksum = checksum(src)
     file_stats = os.stat(src)
     file_size = file_stats.st_size
@@ -131,4 +133,4 @@ if __name__ == '__main__':
         sys.exit(1)
     src = sys.argv[1]
     dest = sys.argv[2]
-    create_video(src, dest)
+    create_video(src, dest, GreedEC, Ggrid_size)

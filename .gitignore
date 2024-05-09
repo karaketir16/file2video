@@ -10,3 +10,5 @@ __pycache__/
 
 test*.txt
 *.mp4
+
+res/

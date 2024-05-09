@@ -14,7 +14,9 @@ from v2.v2 import decode_from_image
 
 from common import *
 
-rs = RSCodec(reedEC)
+rs = None
+reedEC = None
+grid_size = None
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -36,23 +38,36 @@ def process_frameQR(frame):
 def process_frame(frame):
     data = decode_from_image(frame, grid_size)
 
-    print("HEX: ", data.hex())
-
     length_encoded = data[ : (4 + reedEC)]
     length_decoded, _, _ = rs.decode(length_encoded)
 
     length = int.from_bytes(length_decoded, 'big')
 
-    data, _, _ = rs.decode(data[(4 + reedEC) : length])
+    data_encoded = data[ (4 + reedEC) :  (4 + reedEC) + length]
+
+    data, _, errata_pos = rs.decode(data_encoded)
+
+    if len(errata_pos) > 0:
+        print("Fixed Number of Errors in this frame: ", len(errata_pos))
 
     return data
 
-def decode_video(cap, dest_folder):
+def decode_video(cap, dest_folder, reedEC_l, grid):
+    global rs
+    global grid_size
+    global reedEC
+
+    reedEC = reedEC_l
+
+    grid_size = grid
+
+    rs = RSCodec(reedEC)
+
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    pbar = tqdm(total=total_frames, desc="Processing Frames")
+    pbar = tqdm(total= (total_frames - 1), desc="Processing Frames")
 
     ret, first_frame = cap.read()
     if not ret:
@@ -87,7 +102,7 @@ def decode_video(cap, dest_folder):
             pbar.update(len(frames))
 
             for data in datas:
-                file.write(base64.b64decode(data))
+                file.write(data)
 
             if done:
                 break
@@ -99,13 +114,14 @@ def decode_video(cap, dest_folder):
 
     logging.info("Verify file integrity")
     md5_sum = checksum(dest)
-    assert md5_sum == meta_data["Filehash"], "Data corrupted"
+    if md5_sum != meta_data["Filehash"]:
+        raise "Data corrupted"
     logging.info("File integrity verified: ")
     logging.info(dest)
 
-def decode(src, dest_folder):
+def decode(src, dest_folder, reedEC, grid_size):
     cap = cv2.VideoCapture(src)
-    decode_video(cap, dest_folder)
+    decode_video(cap, dest_folder, reedEC, grid_size)
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -114,5 +130,5 @@ if __name__ == '__main__':
     src = sys.argv[1]
     dest_folder = sys.argv[2]
 
-    decode(src, dest_folder)
+    decode(src, dest_folder, GreedEC, Ggrid_size)
 

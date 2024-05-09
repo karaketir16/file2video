@@ -1,19 +1,12 @@
+GreedN = 255
 
+GreedEC = 10
 
-# reedN = 255
-# reedK = 245
+GreedK = GreedN - GreedEC
 
-
-reedN = 10
-reedK = 5
-
-
-reedEC = reedN - reedK
-
-grid_size = 16
+Ggrid_size = 300
 
 # Constants
-chunk_size = (reedK * ((grid_size*grid_size) // (reedN * 8))) - (4 + reedEC)
 frame_rate = 20.0
 width = 1080
 height = 1080
