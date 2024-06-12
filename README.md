@@ -5,7 +5,8 @@ Convert any file to video. This allows you to upload it to YouTube and use YouTu
 ## Warning ⚠️
 
 ## There are some cases where the video cannot be decoded back, especially if you upload the video to YouTube. Do not trust it for your important files.
-#2
+
+[#2](/../../issues/2)
 
 I am not sure what to do about that. Increasing the `global_reedEC` value in `common.py` should be reduce the risk. Same values must be used for encoding and decoding.
 
