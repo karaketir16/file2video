@@ -3,11 +3,11 @@ import os
 import sys
 import math
 import json
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, set_start_method, get_context
 import av
 from tqdm import tqdm
 from reedsolo import RSCodec
-from v2.v2 import encode_to_image
+from lib import encode_to_image
 
 from checksum import checksum
 
@@ -19,6 +19,12 @@ width_height = 1080
 
 rs = None
 grid_size = None
+
+def init_worker(reedEC_val, grid_size_val, global_reedN_val):
+    global rs, grid_size, global_reedN
+    grid_size = grid_size_val
+    global_reedN = global_reedN_val
+    rs = RSCodec(nsym = reedEC_val, nsize = global_reedN_val)
 
 def read_in_chunks(file_object, chunk_size=1024):
     """Generator to read a file piece by piece."""
@@ -52,6 +58,7 @@ def create_video(src, dest, reedEC, grid_size, read_file_lazy = False):
 
     globals()['grid_size'] = grid_size
     globals()['rs'] = RSCodec(nsym = reedEC, nsize = global_reedN)
+    # These globals are for the main process; workers get them via initializer
 
     reedK = global_reedN - reedEC
 
@@ -90,8 +97,15 @@ def create_video(src, dest, reedEC, grid_size, read_file_lazy = False):
     for packet in stream.encode(video_frame):
         container.mux(packet)
 
+
     # Process chunks in batches using multiprocessing
-    with open(src, 'rb') as f, Pool(cpu_count()) as pool:
+    # Use spawn context for Windows compatibility
+    if sys.platform == 'win32':
+       ctx = get_context('spawn')
+    else:
+       ctx = get_context('fork')
+
+    with open(src, 'rb') as f, ctx.Pool(cpu_count(), initializer=init_worker, initargs=(reedEC, grid_size, global_reedN)) as pool:
         entire_file = []
         if not read_file_lazy:
             entire_file = f.read()

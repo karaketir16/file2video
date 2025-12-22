@@ -4,17 +4,24 @@ import os
 import sys
 import logging
 from tqdm import tqdm
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, set_start_method, get_context
 from checksum import checksum
 from reedsolo import RSCodec
 
 from common import *
 
-from v2.v2 import decode_from_image
+from lib import decode_from_image
 
 rs = None
 reedEC = None
 grid_size = None
+
+def init_worker(reedEC_val, grid_size_val, global_reedN_val):
+    global rs, reedEC, grid_size, global_reedN
+    reedEC = reedEC_val
+    grid_size = grid_size_val
+    global_reedN = global_reedN_val
+    rs = RSCodec(nsym = reedEC_val, nsize = global_reedN_val)
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -41,6 +48,7 @@ def decode_video(cap, dest_folder, reedEC, grid_size):
     globals()['grid_size'] = grid_size
     globals()['rs'] = RSCodec(nsym = reedEC, nsize = global_reedN)
     globals()['reedEC'] = reedEC
+    # These globals are for the main process; workers get them via initializer
 
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
@@ -51,11 +59,13 @@ def decode_video(cap, dest_folder, reedEC, grid_size):
     ret, first_frame = cap.read()
     if not ret:
         logging.error("Cannot read first frame")
+        print("Error: Video file seems empty or corrupted.")
         return
 
     metadata = process_frame(first_frame)
     if metadata is None:
         logging.error("No QR code in first frame; cannot proceed")
+        print("Error: Could not find valid QR code metadata in the first frame.")
         return
     meta_data = json.loads(metadata.decode('utf8'))
     dest = os.path.join(dest_folder, meta_data["Filename"])
@@ -64,7 +74,12 @@ def decode_video(cap, dest_folder, reedEC, grid_size):
     # Start worker processes
     num_workers = cpu_count()
 
-    with Pool(num_workers) as pool:
+    if sys.platform == 'win32':
+       ctx = get_context('spawn')
+    else:
+       ctx = get_context('fork')
+
+    with ctx.Pool(num_workers, initializer=init_worker, initargs=(reedEC, grid_size, global_reedN)) as pool:
         while cap.isOpened():
             frames = []
             done = False
@@ -92,9 +107,19 @@ def decode_video(cap, dest_folder, reedEC, grid_size):
 
     logging.info("Verifying file integrity for %s", dest)
     md5_sum = checksum(dest)
-    if md5_sum != meta_data["Filehash"]:
-        logging.error("Data corrupted for file %s", dest)
-        raise ValueError("Data corrupted")
+    try:
+        if md5_sum != meta_data["Filehash"]:
+            logging.error("Data corrupted for file %s", dest)
+            raise ValueError("Data corrupted")
+    except ValueError:
+        print(f"Error: Checksum mismatch! The file {dest} is corrupted.")
+        logging.error("Checksum mismatch. Deleting corrupted file.")
+        file.close() # Ensure closed
+        if os.path.exists(dest):
+            os.remove(dest)
+            print(f"cleaned up: {dest}")
+        return # Exit gracefuly
+
     logging.info("File integrity verified: %s", dest)
 
 def decode(src, dest_folder, reedEC, grid_size):
