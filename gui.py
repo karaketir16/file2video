@@ -228,7 +228,7 @@ class File2VideoApp(ctk.CTk):
                 create_video(src, dest, reed, grid)
                 print("Encoding Finished Successfully!")
                 messagebox.showinfo("Success", "Encoding completed!")
-            except Exception as e:
+            except BaseException as e:
                 print(f"Encoding Failed: {e}")
                 import traceback
                 traceback.print_exc()
@@ -256,7 +256,7 @@ class File2VideoApp(ctk.CTk):
                 decode_video(cap, dest_folder, reed, grid)
                 print("Decoding Finished!")
                 messagebox.showinfo("Success", "Decoding completed!")
-            except Exception as e:
+            except BaseException as e:
                 print(f"Decoding Failed: {e}")
                 import traceback
                 traceback.print_exc()
@@ -282,7 +282,7 @@ class File2VideoApp(ctk.CTk):
                 youtube_decode(url, dest_folder, reed, grid)
                 print("Process Finished!")
                 messagebox.showinfo("Success", "Process completed!")
-            except Exception as e:
+            except BaseException as e:
                 print(f"Task Failed: {e}")
                 import traceback
                 traceback.print_exc()
