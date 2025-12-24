@@ -1,7 +1,10 @@
-av==12.0.0
-numpy==1.26.4
-opencv-python==4.9.0.80
-pillow==10.3.0
-tqdm==4.66.2
-yt-dlp==2024.4.9
-reedsolo==1.7.0
+av
+numpy
+opencv-python
+pillow
+tqdm
+yt-dlp
+reedsolo
+imageio
+customtkinter
+packaging
