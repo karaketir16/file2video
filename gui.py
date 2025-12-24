@@ -32,10 +32,14 @@ class TextRedirector(object):
         self.tag = tag
 
     def write(self, str):
-        self.widget.configure(state="normal")
-        self.widget.insert("end", str, (self.tag,))
-        self.widget.see("end")
-        self.widget.configure(state="disabled")
+        try:
+            self.widget.configure(state="normal")
+            self.widget.insert("end", str, (self.tag,))
+            self.widget.see("end")
+            self.widget.configure(state="disabled")
+        except Exception:
+            # Widget likely destroyed
+            pass
     
     def flush(self):
         pass
