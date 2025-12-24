@@ -12,6 +12,9 @@ def youtube_decode(src, dest_folder, reedEC, grid_size):
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     output_file = f"{dest_folder}/{base_filename}_{timestamp}.mp4"
 
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+
     # Create a yt-dlp configuration to download the video
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
