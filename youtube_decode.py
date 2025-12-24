@@ -37,7 +37,7 @@ def youtube_decode(src, dest_folder, reedEC, grid_size):
         decode_video(cap, dest_folder, reedEC, grid_size)
     else:
         print("Failed to download video.")
-        sys.exit(1)
+        raise RuntimeError("Failed to download video from YouTube.")
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
