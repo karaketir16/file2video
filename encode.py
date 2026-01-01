@@ -3,6 +3,7 @@ import os
 import sys
 import math
 import json
+from fractions import Fraction
 from multiprocessing import Pool, cpu_count, set_start_method, get_context
 import av
 from tqdm import tqdm
@@ -86,7 +87,7 @@ def create_video(src, dest, reedEC, grid_size, read_file_lazy = False):
 
     # Open output file
     container = av.open(dest, mode='w')
-    stream = container.add_stream('h264', rate=frame_rate)
+    stream = container.add_stream('h264', rate=Fraction(frame_rate))
     stream.width = width_height
     stream.height = width_height
     stream.pix_fmt = 'yuv420p'
